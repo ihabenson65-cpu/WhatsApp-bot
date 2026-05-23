@@ -1,15 +1,15 @@
-const { 
-    default: makeWASocket, 
-    useMultiFileAuthState 
+const {
+    default: makeWASocket,
+    useMultiFileAuthState
 } = require("@whiskeysockets/baileys");
 
 const express = require("express");
-const qrcode = require("qrcode-terminal");
 
 const app = express();
 
 const PORT = process.env.PORT || 3000;
 
+// Emojis
 const emojis = ["😍", "🥰", "😘", "❤️", "😎", "🔥"];
 
 function getRandomEmoji() {
@@ -23,33 +23,41 @@ async function startBot() {
 
     // Create socket
     const sock = makeWASocket({
-        auth: state
+        auth: state,
+        printQRInTerminal: false
     });
 
     // Save credentials
     sock.ev.on("creds.update", saveCreds);
 
+    // Pairing Code Login
+    if (!sock.authState.creds.registered) {
+
+        const phoneNumber = "254740672882; // PUT YOUR FULL NUMBER
+
+        const code = await sock.requestPairingCode(phoneNumber);
+
+        console.log(`
+==============================
+YOUR PAIRING CODE: ${code}
+==============================
+`);
+    }
+
     // Connection updates
-    sock.ev.on("connection.update", ({ connection, qr }) => {
+    sock.ev.on("connection.update", ({ connection }) => {
 
-        // Show QR in terminal
-        if (qr) {
-            qrcode.generate(qr, { small: true });
-        }
-
-        // Connected successfully
         if (connection === "open") {
             console.log("✅ Bot connected successfully");
         }
 
-        // Disconnected
         if (connection === "close") {
             console.log("❌ Connection closed");
         }
 
     });
 
-    // Detect new messages/status
+    // Detect status updates
     sock.ev.on("messages.upsert", async (m) => {
 
         const msg = m.messages[0];
@@ -66,7 +74,7 @@ async function startBot() {
                 // Mark status as viewed
                 await sock.readMessages([msg.key]);
 
-                // React with random emoji
+                // React to status
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),

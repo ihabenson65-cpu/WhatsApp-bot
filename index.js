@@ -33,7 +33,7 @@ async function startBot() {
     // Pairing Code Login
     if (!sock.authState.creds.registered) {
 
-        const phoneNumber = "254740672882; // PUT YOUR FULL NUMBER
+        const phoneNumber = "254740672882"; // PUT YOUR FULL NUMBER
 
         const code = await sock.requestPairingCode(phoneNumber);
 

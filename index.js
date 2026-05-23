@@ -30,19 +30,36 @@ async function startBot() {
     // Save credentials
     sock.ev.on("creds.update", saveCreds);
 
-    // Pairing Code Login
+    // Connection updates
+sock.ev.on("connection.update", async ({ connection }) => {
+
+    if (connection === "open") {
+        console.log("✅ Bot connected successfully");
+    }
+
+    if (connection === "close") {
+        console.log("❌ Connection closed");
+    }
+
+    // Generate Pairing Code
     if (!sock.authState.creds.registered) {
 
-        const phoneNumber = "254740672882"; // PUT YOUR FULL NUMBER
+        const phoneNumber = "254740672882";
 
-        const code = await sock.requestPairingCode(phoneNumber);
+        setTimeout(async () => {
 
-        console.log(`
+            const code = await sock.requestPairingCode(phoneNumber);
+
+            console.log(`
 ==============================
 YOUR PAIRING CODE: ${code}
 ==============================
 `);
+
+        }, 5000);
     }
+
+});
 
     // Connection updates
     sock.ev.on("connection.update", ({ connection }) => {

@@ -25,6 +25,7 @@ function getRandomEmoji() {
 // ========================================
 
 let sock;
+let reconnecting = false;
 
 // ========================================
 // Start WhatsApp Bot
@@ -32,49 +33,54 @@ let sock;
 
 async function startBot() {
 
+    const authPath = path.join(__dirname, "auth");
+
     const { state, saveCreds } =
-        await useMultiFileAuthState("auth");
+        await useMultiFileAuthState(authPath);
 
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false,
-        browser: ["BWM-XMD", "Chrome", "1.0.0"]
+        printQRInTerminal: true,
+        browser: ["IHA-BOT", "Chrome", "1.0.0"]
     });
 
-    // Save Credentials
     sock.ev.on("creds.update", saveCreds);
 
     // ========================================
     // Connection Updates
     // ========================================
 
-    sock.ev.on(
-        "connection.update",
-        async ({ connection, lastDisconnect }) => {
+    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
 
-            if (connection === "connecting") {
-                console.log("🟡 Connecting to WhatsApp...");
-            }
+        if (connection === "connecting") {
+            console.log("🟡 Connecting to WhatsApp...");
+        }
 
-            if (connection === "open") {
-                console.log("✅ Connected to WhatsApp");
-            }
+        if (connection === "open") {
+            console.log("✅ Connected to WhatsApp");
+        }
 
-            if (connection === "close") {
+        if (connection === "close") {
 
-                console.log("❌ Connection Closed");
+            console.log("❌ Connection Closed");
 
-                const shouldReconnect =
-                    lastDisconnect?.error?.output?.statusCode !==
-                    DisconnectReason.loggedOut;
+            const shouldReconnect =
+                lastDisconnect?.error?.output?.statusCode !==
+                DisconnectReason.loggedOut;
 
-                if (shouldReconnect) {
-                    console.log("🔄 Reconnecting...");
+            if (shouldReconnect && !reconnecting) {
+
+                reconnecting = true;
+
+                console.log("🔄 Reconnecting...");
+
+                setTimeout(() => {
+                    reconnecting = false;
                     startBot();
-                }
+                }, 3000);
             }
         }
-    );
+    });
 
     // ========================================
     // Auto View & React To Status
@@ -85,7 +91,6 @@ async function startBot() {
         try {
 
             const msg = m.messages[0];
-
             if (!msg.message) return;
 
             const jid = msg.key.remoteJid;
@@ -93,10 +98,8 @@ async function startBot() {
             // Detect Status
             if (jid === "status@broadcast") {
 
-                // Mark as viewed
                 await sock.readMessages([msg.key]);
 
-                // React with random emoji
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),
@@ -108,9 +111,7 @@ async function startBot() {
             }
 
         } catch (err) {
-
             console.log("❌ Status Error:", err.message);
-
         }
     });
 }
@@ -136,7 +137,7 @@ app.get("/", (req, res) => {
 });
 
 // ========================================
-// Generate Pair Code Route
+// Pair Code Route
 // ========================================
 
 app.get("/pair", async (req, res) => {
@@ -145,7 +146,6 @@ app.get("/pair", async (req, res) => {
 
         const number = req.query.number;
 
-        // Validate Number
         if (!number) {
             return res.json({
                 status: false,
@@ -153,17 +153,14 @@ app.get("/pair", async (req, res) => {
             });
         }
 
-        // Bot Ready?
-        if (!sock) {
+        if (!sock || sock.ws?.readyState !== 1) {
             return res.json({
                 status: false,
-                message: "Bot not connected"
+                message: "WhatsApp not ready yet"
             });
         }
 
-        // Generate Pair Code
-        const code =
-            await sock.requestPairingCode(number);
+        const code = await sock.requestPairingCode(number);
 
         console.log(`
 =================================
@@ -172,7 +169,6 @@ ${code}
 =================================
 `);
 
-        // Send Response
         res.json({
             status: true,
             code

@@ -36,12 +36,28 @@ async function startBot() {
         await useMultiFileAuthState("auth");
 
     sock = makeWASocket({
+
         auth: state,
+
         printQRInTerminal: false,
-        browser: ["BWM-XMD", "Chrome", "1.0.0"]
+
+        browser: [
+    "IHA BOT",
+    "Chrome",
+    "1.0.0"
+],
+
+        markOnlineOnConnect: false,
+
+        syncFullHistory: false,
+
+        defaultQueryTimeoutMs: undefined
     });
 
+    // ========================================
     // Save Credentials
+    // ========================================
+
     sock.ev.on("creds.update", saveCreds);
 
     // ========================================
@@ -69,7 +85,9 @@ async function startBot() {
                     DisconnectReason.loggedOut;
 
                 if (shouldReconnect) {
+
                     console.log("🔄 Reconnecting...");
+
                     startBot();
                 }
             }
@@ -90,13 +108,13 @@ async function startBot() {
 
             const jid = msg.key.remoteJid;
 
-            // Detect Status
+            // Status Detection
             if (jid === "status@broadcast") {
 
-                // Mark as viewed
+                // Mark Viewed
                 await sock.readMessages([msg.key]);
 
-                // React with random emoji
+                // React With Random Emoji
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),
@@ -122,7 +140,7 @@ async function startBot() {
 startBot();
 
 // ========================================
-// Serve Frontend Files
+// Serve Frontend
 // ========================================
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -132,32 +150,39 @@ app.use(express.static(path.join(__dirname, "public")));
 // ========================================
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
+
+    res.sendFile(
+        path.join(__dirname, "public", "index.html")
+    );
 });
 
 // ========================================
-// Generate Pair Code Route
+// Pair Code Generator Route
 // ========================================
 
 app.get("/pair", async (req, res) => {
 
     try {
 
-        const number = req.query.number;
+        // Clean Number
+        const number =
+            req.query.number.replace(/[^0-9]/g, "");
 
         // Validate Number
         if (!number) {
+
             return res.json({
                 status: false,
                 message: "Enter phone number"
             });
         }
 
-        // Bot Ready?
+        // Check Socket
         if (!sock) {
+
             return res.json({
                 status: false,
-                message: "Bot not connected"
+                message: "Bot not ready"
             });
         }
 
@@ -166,13 +191,14 @@ app.get("/pair", async (req, res) => {
             await sock.requestPairingCode(number);
 
         console.log(`
-=================================
+========================================
 PAIR CODE FOR ${number}
+
 ${code}
-=================================
+========================================
 `);
 
-        // Send Response
+        // Return Pair Code
         res.json({
             status: true,
             code
@@ -194,5 +220,6 @@ ${code}
 // ========================================
 
 app.listen(PORT, () => {
+
     console.log(`🌍 Server running on port ${PORT}`);
 });

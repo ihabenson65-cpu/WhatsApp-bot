@@ -40,47 +40,53 @@ async function startBot() {
 
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
-        browser: ["IHA-BOT", "Chrome", "1.0.0"]
+        browser: ["IHA-BOT", "Chrome", "1.0.0"],
+        printQRInTerminal: false,
+        markOnlineOnConnect: true,
+        syncFullHistory: false
     });
 
+    // Save Session
     sock.ev.on("creds.update", saveCreds);
 
     // ========================================
     // Connection Updates
     // ========================================
 
-    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+    sock.ev.on(
+        "connection.update",
+        async ({ connection, lastDisconnect }) => {
 
-        if (connection === "connecting") {
-            console.log("🟡 Connecting to WhatsApp...");
-        }
+            if (connection === "connecting") {
+                console.log("🟡 Connecting to WhatsApp...");
+            }
 
-        if (connection === "open") {
-            console.log("✅ Connected to WhatsApp");
-        }
+            if (connection === "open") {
+                console.log("✅ Connected to WhatsApp");
+            }
 
-        if (connection === "close") {
+            if (connection === "close") {
 
-            console.log("❌ Connection Closed");
+                console.log("❌ Connection Closed");
 
-            const shouldReconnect =
-                lastDisconnect?.error?.output?.statusCode !==
-                DisconnectReason.loggedOut;
+                const shouldReconnect =
+                    lastDisconnect?.error?.output?.statusCode !==
+                    DisconnectReason.loggedOut;
 
-            if (shouldReconnect && !reconnecting) {
+                if (shouldReconnect && !reconnecting) {
 
-                reconnecting = true;
+                    reconnecting = true;
 
-                console.log("🔄 Reconnecting...");
+                    console.log("🔄 Reconnecting...");
 
-                setTimeout(() => {
-                    reconnecting = false;
-                    startBot();
-                }, 3000);
+                    setTimeout(() => {
+                        reconnecting = false;
+                        startBot();
+                    }, 3000);
+                }
             }
         }
-    });
+    );
 
     // ========================================
     // Auto View & React To Status
@@ -91,6 +97,7 @@ async function startBot() {
         try {
 
             const msg = m.messages[0];
+
             if (!msg.message) return;
 
             const jid = msg.key.remoteJid;
@@ -98,8 +105,10 @@ async function startBot() {
             // Detect Status
             if (jid === "status@broadcast") {
 
+                // Mark status as viewed
                 await sock.readMessages([msg.key]);
 
+                // React with random emoji
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),
@@ -111,7 +120,9 @@ async function startBot() {
             }
 
         } catch (err) {
+
             console.log("❌ Status Error:", err.message);
+
         }
     });
 }
@@ -137,14 +148,14 @@ app.get("/", (req, res) => {
 });
 
 // ========================================
-// Pair Code Route
+// Generate Pair Code Route
 // ========================================
 
 app.get("/pair", async (req, res) => {
 
     try {
 
-        const number = req.query.number;
+        let number = req.query.number;
 
         if (!number) {
             return res.json({
@@ -153,19 +164,22 @@ app.get("/pair", async (req, res) => {
             });
         }
 
-        if (!sock || sock.ws?.readyState !== 1) {
-            return res.json({
-                status: false,
-                message: "WhatsApp not ready yet"
-            });
-        }
+        // Remove spaces, + and symbols
+        number = number.replace(/[^0-9]/g, "");
 
-        const code = await sock.requestPairingCode(number);
+        // Wait for socket
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Generate Pair Code
+        const code =
+            await sock.requestPairingCode(number);
 
         console.log(`
 =================================
 PAIR CODE FOR ${number}
+
 ${code}
+
 =================================
 `);
 
@@ -180,7 +194,7 @@ ${code}
 
         res.json({
             status: false,
-            message: "Failed to generate pair code"
+            message: err.message
         });
     }
 });

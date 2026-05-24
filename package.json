@@ -1,13 +1,22 @@
 {
   "name": "whatsapp-bot",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "WhatsApp Pair Code Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "pair-code",
+    "bot"
+  ],
+  "author": "YourName",
+  "license": "MIT",
   "dependencies": {
-    "@whiskeysockets/baileys": "*",
-    "express": "^4.21.2",
-    "qrcode-terminal": "*"
+    "@whiskeysockets/baileys": "latest",
+    "express": "^4.21.2"
   }
 }

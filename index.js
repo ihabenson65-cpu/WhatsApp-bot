@@ -171,33 +171,7 @@ app.get("/pair", async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         // Generate Pair Code
-        const code =
-            await sock.requestPairingCode(number);
-
-        console.log(`
-=================================
-PAIR CODE FOR ${number}
-
-${code}
-
-=================================
-`);
-
-        res.json({
-            status: true,
-            code
-        });
-
-    } catch (err) {
-
-        console.log("❌ Pair Code Error:", err.message);
-
-        res.json({
-            status: false,
-            message: err.message
-        });
-    }
-});
+        
 
 // ========================================
 // Start Express Server

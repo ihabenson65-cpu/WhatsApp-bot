@@ -1,80 +1,77 @@
 const {
     default: makeWASocket,
-    useMultiFileAuthState
+    useMultiFileAuthState,
+    DisconnectReason
 } = require("@whiskeysockets/baileys");
 
 const express = require("express");
+const path = require("path");
 
 const app = express();
-
 const PORT = process.env.PORT || 3000;
 
-// Emojis
+// ===========================
+// Emojis (UNCHANGED)
+// ===========================
+
 const emojis = ["😍", "🥰", "😘", "❤️", "😎", "🔥"];
 
 function getRandomEmoji() {
     return emojis[Math.floor(Math.random() * emojis.length)];
 }
 
+// ===========================
+// Global Socket
+// ===========================
+
+let sock;
+
+// ===========================
+// Start Bot
+// ===========================
+
 async function startBot() {
 
-    // Authentication
-    const { state, saveCreds } = await useMultiFileAuthState("auth");
+    const { state, saveCreds } =
+        await useMultiFileAuthState("auth");
 
-    // Create socket
-    const sock = makeWASocket({
+    sock = makeWASocket({
         auth: state,
         printQRInTerminal: false
     });
 
-    // Save credentials
+    // Save session
     sock.ev.on("creds.update", saveCreds);
 
-    // Connection updates
-sock.ev.on("connection.update", async ({ connection }) => {
+    // ===========================
+    // Connection Updates
+    // ===========================
 
-    if (connection === "open") {
-        console.log("✅ Bot connected successfully");
-    }
-
-    if (connection === "close") {
-        console.log("❌ Connection closed");
-    }
-
-    // Generate Pairing Code
-    if (!sock.authState.creds.registered) {
-
-        const phoneNumber = "254740672882";
-
-        setTimeout(async () => {
-
-            const code = await sock.requestPairingCode(phoneNumber);
-
-            console.log(`
-==============================
-YOUR PAIRING CODE: ${code}
-==============================
-`);
-
-        }, 5000);
-    }
-
-});
-
-    // Connection updates
-    sock.ev.on("connection.update", ({ connection }) => {
+    sock.ev.on("connection.update",
+        async ({ connection, lastDisconnect }) => {
 
         if (connection === "open") {
-            console.log("✅ Bot connected successfully");
+            console.log("✅ WhatsApp connected");
         }
 
         if (connection === "close") {
-            console.log("❌ Connection closed");
-        }
 
+            console.log("❌ Connection closed");
+
+            const shouldReconnect =
+                lastDisconnect?.error?.output?.statusCode !==
+                DisconnectReason.loggedOut;
+
+            if (shouldReconnect) {
+                startBot();
+            }
+        }
     });
 
-    // Detect status updates
+    // ===========================
+    // Status Viewer + React
+    // ===========================
+
     sock.ev.on("messages.upsert", async (m) => {
 
         const msg = m.messages[0];
@@ -88,10 +85,10 @@ YOUR PAIRING CODE: ${code}
 
             try {
 
-                // Mark status as viewed
+                // View status
                 await sock.readMessages([msg.key]);
 
-                // React to status
+                // React
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),
@@ -99,24 +96,90 @@ YOUR PAIRING CODE: ${code}
                     }
                 });
 
-                console.log("✅ Viewed and reacted to a status");
+                console.log("✅ Viewed & reacted to status");
 
             } catch (err) {
 
-                console.log("❌ Error handling status:", err);
+                console.log("❌ Status Error:", err.message);
 
             }
         }
     });
 }
 
-// Start bot
+// ===========================
+// Start WhatsApp
+// ===========================
+
 startBot();
 
-// Express server for Render
+// ===========================
+// Frontend
+// ===========================
+
+app.use(express.static(path.join(__dirname, "public")));
+
+// ===========================
+// Home Route
+// ===========================
+
 app.get("/", (req, res) => {
-    res.send("WhatsApp Bot is running ✅");
+    res.sendFile(path.join(__dirname, "public/index.html"));
 });
+
+// ===========================
+// Pair Code Route
+// ===========================
+
+app.get("/pair", async (req, res) => {
+
+    try {
+
+        const number = req.query.number;
+
+        if (!number) {
+            return res.json({
+                status: false,
+                message: "Number is required"
+            });
+        }
+
+        if (!sock) {
+            return res.json({
+                status: false,
+                message: "Bot not ready"
+            });
+        }
+
+        // Generate Pair Code
+        const code =
+            await sock.requestPairingCode(number);
+
+        console.log(`
+========================
+PAIR CODE: ${code}
+========================
+`);
+
+        res.json({
+            status: true,
+            code
+        });
+
+    } catch (err) {
+
+        console.log("❌ Pair Error:", err);
+
+        res.json({
+            status: false,
+            message: "Failed to generate code"
+        });
+    }
+});
+
+// ===========================
+// Server
+// ===========================
 
 app.listen(PORT, () => {
     console.log(`🌍 Server running on port ${PORT}`);

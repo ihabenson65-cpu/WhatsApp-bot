@@ -10,9 +10,9 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ===========================
+// ========================================
 // Emojis (UNCHANGED)
-// ===========================
+// ========================================
 
 const emojis = ["😍", "🥰", "😘", "❤️", "😎", "🔥"];
 
@@ -20,15 +20,15 @@ function getRandomEmoji() {
     return emojis[Math.floor(Math.random() * emojis.length)];
 }
 
-// ===========================
+// ========================================
 // Global Socket
-// ===========================
+// ========================================
 
 let sock;
 
-// ===========================
-// Start Bot
-// ===========================
+// ========================================
+// Start WhatsApp Bot
+// ========================================
 
 async function startBot() {
 
@@ -37,58 +37,66 @@ async function startBot() {
 
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false
+        printQRInTerminal: false,
+        browser: ["BWM-XMD", "Chrome", "1.0.0"]
     });
 
-    // Save session
+    // Save Credentials
     sock.ev.on("creds.update", saveCreds);
 
-    // ===========================
+    // ========================================
     // Connection Updates
-    // ===========================
+    // ========================================
 
-    sock.ev.on("connection.update",
+    sock.ev.on(
+        "connection.update",
         async ({ connection, lastDisconnect }) => {
 
-        if (connection === "open") {
-            console.log("✅ WhatsApp connected");
-        }
+            if (connection === "connecting") {
+                console.log("🟡 Connecting to WhatsApp...");
+            }
 
-        if (connection === "close") {
+            if (connection === "open") {
+                console.log("✅ Connected to WhatsApp");
+            }
 
-            console.log("❌ Connection closed");
+            if (connection === "close") {
 
-            const shouldReconnect =
-                lastDisconnect?.error?.output?.statusCode !==
-                DisconnectReason.loggedOut;
+                console.log("❌ Connection Closed");
 
-            if (shouldReconnect) {
-                startBot();
+                const shouldReconnect =
+                    lastDisconnect?.error?.output?.statusCode !==
+                    DisconnectReason.loggedOut;
+
+                if (shouldReconnect) {
+                    console.log("🔄 Reconnecting...");
+                    startBot();
+                }
             }
         }
-    });
+    );
 
-    // ===========================
-    // Status Viewer + React
-    // ===========================
+    // ========================================
+    // Auto View & React To Status
+    // ========================================
 
     sock.ev.on("messages.upsert", async (m) => {
 
-        const msg = m.messages[0];
+        try {
 
-        if (!msg.message) return;
+            const msg = m.messages[0];
 
-        const jid = msg.key.remoteJid;
+            if (!msg.message) return;
 
-        // Status detection
-        if (jid === "status@broadcast") {
+            const jid = msg.key.remoteJid;
 
-            try {
+            // Detect Status
+            if (jid === "status@broadcast") {
 
-                // View status
+                // Mark as viewed
                 await sock.readMessages([msg.key]);
 
-                // React
+                // React with random emoji
                 await sock.sendMessage(jid, {
                     react: {
                         text: getRandomEmoji(),
@@ -97,39 +105,39 @@ async function startBot() {
                 });
 
                 console.log("✅ Viewed & reacted to status");
-
-            } catch (err) {
-
-                console.log("❌ Status Error:", err.message);
-
             }
+
+        } catch (err) {
+
+            console.log("❌ Status Error:", err.message);
+
         }
     });
 }
 
-// ===========================
-// Start WhatsApp
-// ===========================
+// ========================================
+// Start Bot
+// ========================================
 
 startBot();
 
-// ===========================
-// Frontend
-// ===========================
+// ========================================
+// Serve Frontend Files
+// ========================================
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// ===========================
+// ========================================
 // Home Route
-// ===========================
+// ========================================
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public/index.html"));
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ===========================
-// Pair Code Route
-// ===========================
+// ========================================
+// Generate Pair Code Route
+// ========================================
 
 app.get("/pair", async (req, res) => {
 
@@ -137,17 +145,19 @@ app.get("/pair", async (req, res) => {
 
         const number = req.query.number;
 
+        // Validate Number
         if (!number) {
             return res.json({
                 status: false,
-                message: "Number is required"
+                message: "Enter phone number"
             });
         }
 
+        // Bot Ready?
         if (!sock) {
             return res.json({
                 status: false,
-                message: "Bot not ready"
+                message: "Bot not connected"
             });
         }
 
@@ -156,11 +166,13 @@ app.get("/pair", async (req, res) => {
             await sock.requestPairingCode(number);
 
         console.log(`
-========================
-PAIR CODE: ${code}
-========================
+=================================
+PAIR CODE FOR ${number}
+${code}
+=================================
 `);
 
+        // Send Response
         res.json({
             status: true,
             code
@@ -168,18 +180,18 @@ PAIR CODE: ${code}
 
     } catch (err) {
 
-        console.log("❌ Pair Error:", err);
+        console.log("❌ Pair Code Error:", err.message);
 
         res.json({
             status: false,
-            message: "Failed to generate code"
+            message: "Failed to generate pair code"
         });
     }
 });
 
-// ===========================
-// Server
-// ===========================
+// ========================================
+// Start Express Server
+// ========================================
 
 app.listen(PORT, () => {
     console.log(`🌍 Server running on port ${PORT}`);
